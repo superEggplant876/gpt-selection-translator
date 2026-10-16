@@ -1,0 +1,22 @@
+# Never publish local sign-in credentials or runtime data.
+data/
+**/*.dpapi
+**/host-id.txt
+**/server.json
+**/desktop.json
+**/settings.json
+**/status.json
+.env
+.env.*
+*.log
+runtime/
+lib/
+.venv/
+__pycache__/
+*.py[cod]
+tests/verifier-test-temp/
+build/
+dist/
+*.zip
+.DS_Store
+Thumbs.db
