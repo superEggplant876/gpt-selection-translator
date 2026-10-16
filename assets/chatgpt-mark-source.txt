@@ -1,0 +1,3 @@
+ChatGPT mark from OpenAI's official design assets, resized for the translation action.
+OpenAI and ChatGPT marks belong to OpenAI. This project is not an official OpenAI product.
+https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/assets/brand/chatgpt-button-black-21.svg

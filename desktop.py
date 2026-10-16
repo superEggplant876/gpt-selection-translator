@@ -14,6 +14,7 @@ from tkinter import ttk
 import webbrowser
 
 import native_windows as native
+from popup_style import create_popup
 from translation_client import TranslationClient
 from verify_connection import VerificationError, atomic_write
 from model_catalog import REFRESH_SECONDS, choose_model
@@ -101,12 +102,7 @@ class Desktop:
         tk.Button(bottom, text='登录 / 重新连接', command=self.login, bg=BG, fg=MUTED, bd=0).pack(side='left', padx=12)
         tk.Button(bottom, text='退出程序', command=self.exit, bg=BG, fg=MUTED, bd=0).pack(side='right')
         tk.Label(container, text='使用 ChatGPT 套餐 · 英文译中文，中文译英文 · 不保存翻译历史', bg=BG, fg=MUTED, font=('Microsoft YaHei UI', 9), anchor='w').pack(fill='x', pady=(12, 0))
-        self.popup = tk.Toplevel(self.root)
-        self.popup.withdraw(); self.popup.overrideredirect(True); self.popup.attributes('-topmost', True)
-        self.popup.configure(bg=GREEN)
-        label = tk.Label(self.popup, text='GPT 翻译', bg=GREEN, fg='white', cursor='hand2', font=('Microsoft YaHei UI', 10, 'bold'), padx=14, pady=8)
-        label.pack()
-        label.bind('<ButtonRelease-1>', lambda e:self.translate_popup())
+        self.popup = create_popup(self.root, self.translate_popup)
         self.root.update_idletasks()
         self.hwnd = native.ancestor(self.root.winfo_id(), 2)
         self.popup_hwnd = native.ancestor(self.popup.winfo_id(), 2)

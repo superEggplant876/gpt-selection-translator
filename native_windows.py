@@ -383,3 +383,13 @@ class Hotkey:
     def close(self):
         if self.thread_id:
             api(u, 'PostThreadMessageW', W.BOOL, W.DWORD, W.UINT, W.WPARAM, W.LPARAM)(self.thread_id, 0x0012, 0, 0)
+
+
+def round_window(hwnd, width, height, radius):
+    """Clip the floating action itself, including its clickable corners."""
+    gdi = C.WinDLL('gdi32', use_last_error=True)
+    region = api(gdi, 'CreateRoundRectRgn', W.HANDLE, C.c_int, C.c_int,
+                 C.c_int, C.c_int, C.c_int, C.c_int)(0, 0, width+1, height+1, radius*2, radius*2)
+    if region:
+        if not api(u, 'SetWindowRgn', C.c_int, W.HWND, W.HANDLE, W.BOOL)(hwnd, region, True):
+            api(gdi, 'DeleteObject', W.BOOL, W.HANDLE)(region)
