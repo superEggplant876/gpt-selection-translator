@@ -1,0 +1,2 @@
+comtypes==1.4.17
+cryptography==50.0.2
