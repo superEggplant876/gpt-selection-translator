@@ -1,2 +1,4 @@
 comtypes==1.4.17
 cryptography==50.0.2
+customtkinter==5.2.2
+Pillow==12.3.0

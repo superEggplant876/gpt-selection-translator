@@ -10,17 +10,15 @@ import subprocess
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
-import webbrowser
 
 import native_windows as native
+from ui_theme import build_dashboard
 from popup_style import create_popup
 from translation_client import TranslationClient
 from verify_connection import VerificationError, atomic_write
 from model_catalog import REFRESH_SECONDS, choose_model
 
 BASE = Path(__file__).resolve().parent
-BG, INK, MUTED, GREEN = '#f5f6f4', '#19392f', '#63776c', '#245e49'
 
 
 class Desktop:
@@ -53,56 +51,11 @@ class Desktop:
             self.settings = json.loads((self.directory / 'settings.json').read_text())
         except (OSError, ValueError):
             pass
-        self.root = tk.Tk()
-        if background:
-            self.root.withdraw()
-        self.root.title('GPT 划词翻译')
-        self.root.geometry('740x800')
-        self.root.minsize(600, 720)
-        self.root.configure(bg=BG)
-        self.root.protocol('WM_DELETE_WINDOW', self.hide)
-        self.root.option_add('*Font', ('Microsoft YaHei UI', 10))
-        self.root.option_add('*TCombobox*Listbox.font', ('Microsoft YaHei UI', 10))
-        style = ttk.Style(self.root)
-        style.theme_use('clam')
-        style.configure('TCombobox', padding=5)
-        container = tk.Frame(self.root, bg=BG, padx=24, pady=20)
-        container.pack(fill='both', expand=True)
-        top = tk.Frame(container, bg=BG); top.pack(fill='x')
-        tk.Label(top, text='GPT 划词翻译', bg=BG, fg=INK, font=('Microsoft YaHei UI', 20, 'bold')).pack(side='left')
-        tk.Button(top, text='收起到后台', command=self.hide, bd=0, bg='#e5ece5', fg=INK, padx=12, pady=7).pack(side='right')
-        tk.Label(container, text='选中文字 → 点击 GPT 翻译，或按 Ctrl+Alt+T', bg=BG, fg=MUTED, anchor='w').pack(fill='x', pady=(8, 12))
-        options = tk.Frame(container, bg=BG); options.pack(fill='x')
-        self.auto = tk.BooleanVar(value=self.settings.get('auto_popup', True))
-        tk.Checkbutton(options, text='划词后显示翻译按钮', variable=self.auto, command=self.save_settings, bg=BG, activebackground=BG, fg=INK, selectcolor=BG).pack(side='left')
-        self.model = ttk.Combobox(options, state='readonly', width=23)
-        self.model.pack(side='right')
-        self.model.bind('<<ComboboxSelected>>', self.model_selected)
-        model_options = tk.Frame(container, bg=BG); model_options.pack(fill='x', pady=(6, 0))
-        self.auto_model = tk.BooleanVar(value=self.settings.get('auto_model', True))
-        tk.Checkbutton(model_options, text='自动跟随模型更新', variable=self.auto_model, command=self.model_mode_changed, bg=BG, activebackground=BG, fg=INK, selectcolor=BG).pack(side='left')
-        tk.Button(model_options, text='更新模型', command=lambda:self.refresh_models(manual=True), bd=0, bg='#e5ece5', fg=INK, padx=12, pady=4).pack(side='right')
-        self.status = tk.StringVar(value='正在连接 ChatGPT 套餐并读取可用模型……')
-        tk.Label(container, textvariable=self.status, bg=BG, fg=MUTED, anchor='w', justify='left', wraplength=670).pack(fill='x', pady=(12, 14))
-        tk.Label(container, text='原文', bg=BG, fg=INK, anchor='w', font=('Microsoft YaHei UI', 10, 'bold')).pack(fill='x')
-        self.source = tk.Text(container, height=5, wrap='word', bd=0, padx=12, pady=10, bg='white', fg=INK, undo=True, exportselection=False)
-        self.source.pack(fill='x', pady=(6, 10))
-        actions = tk.Frame(container, bg=BG); actions.pack(fill='x', pady=(0, 14))
-        self.translate_button = tk.Button(actions, text='翻译', command=lambda:self.translate(self.source.get('1.0', 'end-1c')), bg=GREEN, fg='white', activebackground=GREEN, activeforeground='white', bd=0, padx=24, pady=8)
-        self.translate_button.pack(side='left')
-        tk.Button(actions, text='翻译剪贴板', command=self.translate_clipboard, bg='#e5ece5', fg=INK, bd=0, padx=13, pady=8).pack(side='left', padx=8)
-        tk.Button(actions, text='试译示例', command=lambda:self.translate('Text selection translation is ready.'), bg=BG, fg=MUTED, bd=0).pack(side='left')
-        self.cancel_button = tk.Button(actions, text='取消', state='disabled', command=self.cancel.set, bg=BG, fg=MUTED, bd=0)
-        self.cancel_button.pack(side='right')
-        tk.Label(container, text='译文', bg=BG, fg=INK, anchor='w', font=('Microsoft YaHei UI', 10, 'bold')).pack(fill='x')
-        self.result = tk.Text(container, height=5, wrap='word', bd=0, padx=14, pady=12, bg='#e9f1e8', fg=INK, font=('Microsoft YaHei UI', 12), state='disabled', exportselection=False)
-        self.result.pack(fill='both', expand=True, pady=(6, 12))
-        bottom = tk.Frame(container, bg=BG); bottom.pack(fill='x')
-        tk.Button(bottom, text='复制译文', command=self.copy_result, bg=BG, fg=INK, bd=0).pack(side='left')
-        tk.Button(bottom, text='登录 / 重新连接', command=self.login, bg=BG, fg=MUTED, bd=0).pack(side='left', padx=12)
-        tk.Button(bottom, text='退出程序', command=self.exit, bg=BG, fg=MUTED, bd=0).pack(side='right')
-        tk.Label(container, text='使用 ChatGPT 套餐 · 英文译中文，中文译英文 · 不保存翻译历史', bg=BG, fg=MUTED, font=('Microsoft YaHei UI', 9), anchor='w').pack(fill='x', pady=(12, 0))
-        self.popup = create_popup(self.root, self.translate_popup)
+        self.translation_floating = False
+        self.stream_text = ''
+        build_dashboard(self, background)
+        self.popup = create_popup(self.root, self.translate_popup, self.show,
+                                  self.copy_result, self.cancel.set)
         self.root.update_idletasks()
         self.hwnd = native.ancestor(self.root.winfo_id(), 2)
         self.popup_hwnd = native.ancestor(self.popup.winfo_id(), 2)
@@ -133,12 +86,13 @@ class Desktop:
     def write_runtime_status(self):
         index = self.model.current()
         atomic_write(self.directory / 'desktop.json', json.dumps({
-            'pid':os.getpid(), 'version':'1.2', 'hotkey':'Ctrl+Alt+T',
+            'pid':os.getpid(), 'version':'1.3', 'hotkey':'Ctrl+Alt+T',
             'hotkey_ready':self.hotkey_ready, 'mouse_ready':self.mouse_hook_ready,
             'auto_popup':self.auto.get(), 'models_ready':bool(self.models),
             'model_count':len(self.models), 'model':self.models[index]['slug'] if 0 <= index < len(self.models) else None,
             'auto_model':self.auto_model.get(), 'models_updated_at':self.models_updated_at,
-            'visible':bool(self.root.winfo_viewable())}).encode())
+            'visible':bool(self.root.winfo_viewable()),
+            'popup_phase':self.popup.phase}).encode())
 
     def model_selected(self, event=None):
         self.auto_model.set(False)
@@ -199,10 +153,10 @@ class Desktop:
                 self.events.put(('selected', (kind, text, hwnd, position, generation, allow_copy_button)))
             except native.SelectionError as e:
                 if kind in ('hotkey', 'popup'):
-                    self.events.put(('error', str(e)))
+                    self.events.put(('capture_error', str(e)))
             except Exception:
                 if kind in ('hotkey', 'popup'):
-                    self.events.put(('error', '没有读到选中的文字，请先复制原文，再点“翻译剪贴板”。'))
+                    self.events.put(('capture_error', '没有读到选中文字，请复制后右键进入后台，使用“翻译剪贴板”。'))
 
     def capture(self, kind, hwnd, position, generation=None, allow_copy_button=False):
         generation = self.selection_generation if generation is None else generation
@@ -223,10 +177,11 @@ class Desktop:
                 return
         if len(text) > 20000:
             if kind == 'hotkey':
-                self.status.set('选中文字超过 20,000 字，请分段翻译。'); self.show()
+                self.popup.error('选中文字超过 20,000 字，请分段翻译。')
             return
         if kind in ('hotkey', 'popup'):
-            self.translate(text)
+            position=(position[0]+14,position[1]+16)
+            self.translate(text, floating=True, position=position if kind=='hotkey' else None)
             return
         selection = (hwnd, text, generation)
         if self.auto.get() and selection != self.last_selection:
@@ -234,35 +189,32 @@ class Desktop:
             self.popup_text = text
             self.popup_source = (hwnd, position, generation)
             x, y = position
-            width, height = self.popup.winfo_reqwidth(), self.popup.winfo_reqheight()
-            left, top, right, bottom = native.work_area(x, y)
-            x = max(left, min(x + 14, right - width - 8))
-            y = max(top, min(y + 16, bottom - height - 8))
-            self.popup.geometry(f'{width}x{height}+{x}+{y}')
-            self.popup.deiconify()
-            native.show_no_activate(self.popup_hwnd, x, y, width, height)
+            self.popup.idle((x+14,y+16))
             if self.popup_timer:
                 self.popup.after_cancel(self.popup_timer)
             self.popup_timer = self.popup.after(10000, self.popup.withdraw)
 
     def translate_popup(self):
         text = self.popup_text
-        self.popup.withdraw()
+        if self.popup_timer:
+            self.popup.after_cancel(self.popup_timer);self.popup_timer=None
         if text.strip():
-            self.translate(text)
+            self.translate(text, floating=True)
         elif self.popup_source:
             hwnd, position, generation = self.popup_source
+            self.popup.loading()
             self.capture('popup', hwnd, position, generation)
 
     def mouse_event(self, pressed, hwnd, position):
         x, y = position
-        inside = (self.popup.winfo_viewable() and
-                  self.popup.winfo_rootx() <= x <= self.popup.winfo_rootx()+self.popup.winfo_width() and
-                  self.popup.winfo_rooty() <= y <= self.popup.winfo_rooty()+self.popup.winfo_height())
+        inside = self.popup.contains(x,y)
         if inside:
             return
         if pressed:
-            self.popup.withdraw()
+            if self.busy:
+                self.popup.close_menu()
+                return
+            self.popup.dismiss()
             self.selection_generation += 1
             self.last_selection = None
             self.mouse_start = (hwnd, position)
@@ -291,24 +243,36 @@ class Desktop:
 
     def translate_clipboard(self):
         try:
-            self.translate(native.read_clipboard(self.hwnd))
+            self.translate(native.read_clipboard(self.hwnd), floating=False)
         except native.SelectionError as e:
             self.status.set(str(e))
 
-    def translate(self, text):
+    def translate(self, text, floating=True, position=None):
         if self.busy:
-            self.show(); return
-        self.popup.withdraw(); self.show()
+            if floating:
+                self.popup.reveal(position)
+            return
+        self.translation_floating = floating
+        if self.popup_timer:
+            self.popup.after_cancel(self.popup_timer);self.popup_timer=None
+        if floating:self.popup.loading(position)
+        else:self.popup.dismiss()
         if not text.strip():
-            self.status.set('请先选中文字，或在原文框里粘贴内容。'); return
+            self.status.set('请先选中文字，或在原文框里粘贴内容。')
+            if floating:self.popup.error('请先选中文字。')
+            return
         if len(text) > 20000:
-            self.status.set('选中文字超过 20,000 字，请分段翻译。'); return
+            self.status.set('选中文字超过 20,000 字，请分段翻译。')
+            if floating:self.popup.error('选中文字超过 20,000 字，请分段翻译。')
+            return
         self.source.delete('1.0', 'end'); self.source.insert('1.0', text)
         index = self.model.current()
         if not 0 <= index < len(self.models):
-            self.status.set('模型尚未就绪，请稍后或点击“登录 / 重新连接”。'); return
+            self.status.set('模型尚未就绪，请稍后或点击“登录 / 重新连接”。')
+            if floating:self.popup.error('模型尚未就绪。右键进入后台，可查看登录状态。')
+            return
         model = self.models[index]['slug']
-        self.busy = True; self.cancel.clear(); self.set_result('')
+        self.busy = True; self.cancel.clear(); self.set_result('');self.stream_text=''
         self.translate_button.configure(state='disabled'); self.cancel_button.configure(state='normal')
         self.status.set('正在翻译……')
         def worker():
@@ -371,17 +335,28 @@ class Desktop:
                 self.write_runtime_status()
             elif kind == 'mouse':
                 self.mouse_event(*value)
+            elif kind == 'capture_error':
+                self.status.set(value);self.popup.error(value)
             elif kind in ('error', 'hotkey_error'):
-                self.status.set(value); self.show()
+                self.status.set(value)
             elif kind == 'selection_warning':
                 self.auto.set(False)
                 self.status.set('此环境未能启用划词按钮，可先使用 Ctrl+Alt+T。')
             elif kind == 'delta':
                 self.append_result(value)
+                self.stream_text+=value
+                if self.translation_floating and value:self.popup.append(value)
             elif kind == 'completed':
-                self.set_result(value); self.finish(); self.status.set('翻译完成 · 使用 ChatGPT 套餐')
+                self.set_result(value)
+                if self.translation_floating:self.popup.set_text(value)
+                self.finish(); self.status.set('翻译完成 · 使用 ChatGPT 套餐')
+                self.write_runtime_status()
             elif kind == 'translation_error':
                 self.finish(); self.status.set(value + ' 当前显示的内容可能不完整。')
+                if self.translation_floating:
+                    message=(self.stream_text+'\n\n'+value+'（译文未完成）') if self.stream_text else value
+                    self.popup.error(message)
+                self.write_runtime_status()
         pressed = bool(native.key_state(1) & 0x8000)
         if not self.mouse_hook_ready and pressed != self.mouse_down:
             self.mouse_event(pressed, native.foreground(), native.point())
@@ -397,6 +372,8 @@ class Desktop:
             self.status.set('译文已复制。')
 
     def show(self):
+        self.translation_floating=False
+        self.popup.dismiss()
         self.root.deiconify(); self.root.lift()
         self.root.after_idle(self.write_runtime_status)
 
@@ -413,6 +390,9 @@ class Desktop:
 
     def exit(self):
         self.stopping = True; self.cancel.set(); self.hotkey.close(); self.mouse_watcher.close()
+        self.popup.destroy()
+        for task in self.root.tk.call('after','info'):
+            self.root.tk.call('after','cancel',task)
         self.root.destroy()
 
 
